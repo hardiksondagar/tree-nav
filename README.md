@@ -2,7 +2,7 @@
 
 A high-density, hierarchical timeline component for React. It flattens complex tree structures into a sleek, linear "Fish-Eye" navigation bar.
 
-![Timeline Demo](https://via.placeholder.com/800x200?text=Tree+Nav+Preview)
+![Timeline Demo](./demo.gif)
 
 ## 🌟 Why?
 
