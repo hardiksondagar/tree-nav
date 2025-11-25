@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>React Tree Nav - Hierarchical Timeline Component Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body class="bg-gray-50 min-h-screen flex flex-col">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useMemo } = React;
+
+      // --- Icons ---
+      const HomeIcon = ({ width = 16, height = 16 }) => (
+        <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      );
+      const ChevronLeftIcon = ({ width = 18, height = 18 }) => (
+        <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      );
+      const PlayIcon = () => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+      );
+      const PauseIcon = () => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>
+        </svg>
+      );
+
+      // --- Data Structure: Business Loan Application ---
+      const getRandomNarrations = () => Math.floor(Math.random() * 5) + 4;
+
+      const presentationTree = {
+        '1': { id: '1', title: '1. Business Basics', type: 'slide', duration: 30, parent: null, narrations: getRandomNarrations() },
+        '2': { id: '2', title: '2. Founder Profiles', type: 'slide', duration: 45, parent: null, narrations: getRandomNarrations() },
+        '3': { id: '3', title: '3. Loan Type', type: 'slide', duration: 20, parent: null, narrations: getRandomNarrations() },
+        '4': { id: '4', title: '4. Collateral', type: 'navigation', duration: 0, parent: null, narrations: 0 },
+        '5': { id: '5', title: '5. Financial Documents (20 Steps)', type: 'navigation', duration: 0, parent: null, narrations: 0 },
+        '6': { id: '6', title: '6. Final Review', type: 'slide', duration: 10, parent: null, narrations: getRandomNarrations() },
+
+        // Level 2: Collateral
+        '4.1': { id: '4.1', title: '4.1 Real Estate', type: 'slide', duration: 30, parent: '4', narrations: getRandomNarrations() },
+        '4.2': { id: '4.2', title: '4.2 Equipment', type: 'slide', duration: 30, parent: '4', narrations: getRandomNarrations() },
+        '4.3': { id: '4.3', title: '4.3 Inventory', type: 'navigation', duration: 0, parent: '4', narrations: 0 },
+
+        // Level 3: Inventory Detail
+        '4.3.1': { id: '4.3.1', title: '4.3.1 Raw Materials', type: 'slide', duration: 30, parent: '4.3', narrations: getRandomNarrations() },
+        '4.3.2': { id: '4.3.2', title: '4.3.2 Finished Goods', type: 'slide', duration: 30, parent: '4.3', narrations: getRandomNarrations() },
+        '4.3.3': { id: '4.3.3', title: '4.3.3 Warehouse Locs', type: 'navigation', duration: 0, parent: '4.3', narrations: 0 },
+
+        // Level 4: Warehouse
+        '4.3.3.1': { id: '4.3.3.1', title: '4.3.3.1 Main Hub', type: 'slide', duration: 30, parent: '4.3.3', narrations: getRandomNarrations() },
+        '4.3.3.2': { id: '4.3.3.2', title: '4.3.3.2 East Branch', type: 'slide', duration: 30, parent: '4.3.3', narrations: getRandomNarrations() },
+      };
+
+      // Generate 20 steps for Financials (The "Monster" Form)
+      const financialSteps = [
+        "Profit & Loss 2023", "Profit & Loss 2022", "Balance Sheet YTD", "Tax Return 2023", "Tax Return 2022",
+        "Bank Statements Jan", "Bank Statements Feb", "Bank Statements Mar", "Bank Statements Apr", "Bank Statements May",
+        "Bank Statements Jun", "Accounts Receivable", "Accounts Payable", "Debt Schedule", "Ownership Cap Table",
+        "Revenue Projections", "Cash Flow Forecast", "Vendor Contracts", "Lease Agreements", "Insurance Policy"
+      ];
+
+      financialSteps.forEach((stepName, i) => {
+        const id = `5.${i+1}`;
+        presentationTree[id] = {
+          id: id,
+          title: `5.${i+1} ${stepName}`,
+          type: 'slide',
+          duration: 45,
+          parent: '5',
+          narrations: getRandomNarrations()
+        };
+      });
+
+      const getChildren = (parentId) => Object.values(presentationTree).filter(node => node.parent === parentId);
+      const getRoots = () => Object.values(presentationTree).filter(node => node.parent === null);
+
+      // --- Main Application ---
+      const App = () => {
+        const [currentPathId, setCurrentPathId] = useState(null);
+        const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+        const [activeNarrationIndex, setActiveNarrationIndex] = useState(0);
+        const [isPlaying, setIsPlaying] = useState(false);
+        const listContainerRef = React.useRef(null); // Ref for scrolling form list
+
+        // Auto-scroll form list when active narration changes
+        useEffect(() => {
+          if (listContainerRef.current) {
+            const activeElement = listContainerRef.current.children[activeNarrationIndex];
+            if (activeElement) {
+              activeElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }
+        }, [activeNarrationIndex]);
+        const [hoveredSlideIndex, setHoveredSlideIndex] = useState(null); // Track hover state
+        const hoverTimeoutRef = React.useRef(null); // Ref for enter delay
+        const leaveTimeoutRef = React.useRef(null); // Ref for leave delay
+        const ignoreHoverRef = React.useRef(false); // Lockout ref
+
+        // Cleanup timeout on unmount
+        useEffect(() => {
+          return () => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+          };
+        }, []);
+
+        const handleMouseEnter = (idx) => {
+          if (ignoreHoverRef.current) return; // Ignore if locked out
+
+          // If we were about to leave another segment, cancel that leave
+          if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+
+          // Clear any pending enter for other segments
+          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+          hoverTimeoutRef.current = setTimeout(() => {
+             setHoveredSlideIndex(idx);
+          }, 400); // 400ms delay for smoother feel
+        };
+
+        const handleMouseLeaveSegment = () => {
+           if (ignoreHoverRef.current) return; // Ignore if locked out
+           if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+           // Delay the collapse
+           leaveTimeoutRef.current = setTimeout(() => {
+             setHoveredSlideIndex(null);
+           }, 400);
+        };
+
+
+        // Computed
+        const currentSegment = useMemo(() => {
+          return currentPathId ? getChildren(currentPathId) : getRoots();
+        }, [currentPathId]);
+
+        const parentNode = useMemo(() => {
+           if (!currentPathId) return { title: 'Home', id: null };
+           const currentNode = presentationTree[currentPathId];
+           if (!currentNode.parent) return { title: 'Home', id: null };
+           return presentationTree[currentNode.parent];
+        }, [currentPathId]);
+
+        // Keyboard Navigation
+        useEffect(() => {
+          const handleKeyDown = (e) => {
+            if (e.key === 'ArrowRight') {
+               // Next Narration or Slide
+               const currentSlide = currentSegment[activeSlideIndex];
+               if (currentSlide && activeNarrationIndex < currentSlide.narrations - 1) {
+                 setActiveNarrationIndex(prev => prev + 1);
+               } else if (activeSlideIndex < currentSegment.length - 1) {
+                 setActiveSlideIndex(prev => prev + 1);
+                 setActiveNarrationIndex(0); // Reset for next slide
+               }
+            } else if (e.key === 'ArrowLeft') {
+               // Prev Narration or Slide
+               if (activeNarrationIndex > 0) {
+                 setActiveNarrationIndex(prev => prev - 1);
+               } else if (activeSlideIndex > 0) {
+                 setActiveSlideIndex(prev => prev - 1);
+                 // Set to last narration of previous slide? Or first? Usually first for prev slide.
+                 setActiveNarrationIndex(0);
+               }
+            } else if (e.key === 'Escape' || e.key === 'Backspace') {
+               handleBackClick();
+            } else if (e.key === ' ') {
+               e.preventDefault(); // Prevent scroll
+               setIsPlaying(prev => !prev);
+            }
+          };
+
+          window.addEventListener('keydown', handleKeyDown);
+          return () => window.removeEventListener('keydown', handleKeyDown);
+        }, [activeSlideIndex, activeNarrationIndex, currentSegment, currentPathId]);
+
+        const handleSegmentClick = (index) => {
+          setActiveSlideIndex(index);
+          setActiveNarrationIndex(0); // Reset narration on manual segment click
+
+          const slide = currentSegment[index];
+          if (slide.type === 'navigation') {
+             setHoveredSlideIndex(null); // Clear hover on navigation
+             if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+             // Lockout hovers for 1s to prevent accidental triggers
+             ignoreHoverRef.current = true;
+             setTimeout(() => { ignoreHoverRef.current = false; }, 1000);
+
+             setCurrentPathId(slide.id);
+             setActiveSlideIndex(0);
+             setActiveNarrationIndex(0);
+          }
+        };
+
+        const handleBackClick = () => {
+          if (!currentPathId) return;
+          setHoveredSlideIndex(null); // Clear hover on back
+          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+          // Lockout hovers for 1s
+          ignoreHoverRef.current = true;
+          setTimeout(() => { ignoreHoverRef.current = false; }, 1000);
+
+          const currentNode = presentationTree[currentPathId];
+          setCurrentPathId(currentNode.parent); // Go up one level
+          setActiveSlideIndex(0);
+        };
+
+        const handleNarrationClick = (e, slideIndex, narrationIndex) => {
+           e.stopPropagation(); // Prevent triggering slide click
+           if (slideIndex !== activeSlideIndex) {
+             setActiveSlideIndex(slideIndex);
+           }
+           setActiveNarrationIndex(narrationIndex);
+        };
+
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen pb-32 px-4 bg-slate-50">
+             <div className="text-center mb-12 max-w-md">
+              <h1 className="text-4xl font-bold text-slate-800 mb-2">Business Loan Application</h1>
+               <p className="text-slate-500 mb-6">
+                 <span className="font-medium text-slate-400 uppercase text-xs tracking-wider">Current Section</span><br/>
+                 <span className="font-semibold text-emerald-600 text-lg">
+                   {currentPathId ? presentationTree[currentPathId].title : 'Start Application'}
+                 </span>
+               </p>
+               {currentSegment[activeSlideIndex] && currentSegment[activeSlideIndex].narrations > 0 && (
+                 <div className="inline-block bg-white px-4 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-500 shadow-sm mb-8">
+                   Field {activeNarrationIndex + 1} of {currentSegment[activeSlideIndex].narrations}
+                 </div>
+               )}
+
+               {/* Dynamic Form Display Area */}
+               <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-100 p-8 text-left transition-all duration-300">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold text-slate-800">
+                      {currentSegment[activeSlideIndex]?.title || 'Select a Step'}
+                    </h2>
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">
+                      Active
+                    </span>
+                  </div>
+
+                  <div ref={listContainerRef} className="space-y-4 max-h-[300px] overflow-y-auto pr-2 scroll-smooth">
+                    {/* Render All Form Fields for this Step */}
+                    {currentSegment[activeSlideIndex]?.narrations > 0 ? (
+                      Array.from({ length: currentSegment[activeSlideIndex].narrations }).map((_, idx) => {
+                        const isFieldActive = idx === activeNarrationIndex;
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => setActiveNarrationIndex(idx)} // Click form to update timeline
+                            className={`p-4 rounded-lg border transition-all duration-300 cursor-pointer ${
+                              isFieldActive
+                                ? 'bg-emerald-50/50 border-emerald-500 shadow-sm scale-[1.02]'
+                                : 'bg-white border-slate-100 opacity-60 hover:opacity-100 hover:border-slate-300'
+                            }`}
+                          >
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isFieldActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              Question {idx + 1}
+                            </label>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-sm font-medium ${isFieldActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                                {['Enter details...', 'Upload document...', 'Verify identity...', 'Review data...', 'Sign contract...'][idx % 5]}
+                              </span>
+                              {isFieldActive && (
+                                <span className="text-emerald-500">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8 text-slate-400 italic">No fields in this section</div>
+                    )}
+                  </div>
+               </div>
+            </div>
+            {/* Narrow Timeline Control (30% width) */}
+            <div className="fixed bottom-8 w-[30%] min-w-[320px] max-w-[500px] bg-white rounded-full shadow-xl border border-gray-200 px-3 py-2 z-50 flex items-center gap-3">
+
+              {/* Controls Group: Back + Play */}
+              <div className="flex items-center gap-2 flex-shrink-0 border-r border-gray-100 pr-2 mr-1">
+
+                {/* Back Button */}
+                <div className="relative group">
+                   <button
+                     onClick={handleBackClick}
+                     disabled={!currentPathId}
+                     className={`
+                       w-8 h-8 flex items-center justify-center rounded-full transition-colors relative z-10
+                       ${!currentPathId
+                         ? 'bg-emerald-50 text-emerald-600 cursor-default'
+                         : 'bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 cursor-pointer'}
+                     `}
+                   >
+                     {!currentPathId ? <HomeIcon width={14} height={14} /> : <ChevronLeftIcon width={16} height={16} />}
+                   </button>
+                   <div className="absolute bottom-full left-0 mb-3 bg-gray-800 text-white text-xs font-medium py-1.5 px-3 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                     {!currentPathId ? "Home" : `Back to ${parentNode.title}`}
+                     <div className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                   </div>
+                </div>
+
+                {/* Play/Pause Button */}
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-emerald-600 transition-colors"
+                  title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                </button>
+
+              </div>
+
+              {/* Right: Timeline Segments */}
+              <div
+                className="flex-1 flex gap-1 h-3 transition-all duration-300 ease-out"
+                onMouseLeave={() => {
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  setHoveredSlideIndex(null);
+                }}
+              >
+                {currentSegment.map((slide, idx) => {
+                  const isActive = idx === activeSlideIndex;
+                  const isPast = idx < activeSlideIndex;
+                  const hasNarrations = slide.narrations > 0;
+
+                  // Option C (Final Polish): Persistent Focus
+                  // Active slide IS expanded by default. Hovering others expands them temporarily.
+
+                  // Determine which index gets the "Focus" (Expansion)
+                  // Priority: Hovered Index > Active Index
+                  const targetIndex = hoveredSlideIndex !== null ? hoveredSlideIndex : activeSlideIndex;
+                  const isExpanded = idx === targetIndex;
+
+                  const isCrowded = currentSegment.length > 10;
+                  // If crowded, give the expanded slide MASSIVE space (flex-20) to ensure pills fit
+                  // If not crowded, flex-3 is enough
+                  const flexClass = isExpanded
+                     ? (isCrowded ? 'flex-[20]' : 'flex-[3]')
+                     : 'flex-1';
+
+                  return (
+                  <div
+                    key={slide.id}
+                    onClick={() => handleSegmentClick(idx)}
+                    onMouseEnter={() => handleMouseEnter(idx)}
+                    onMouseLeave={handleMouseLeaveSegment}
+                    className={`relative group cursor-pointer transition-[flex-grow] duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${flexClass} min-w-[8px]`} // Added min-w-[8px]
+                  >
+                    {/* Hit Area Booster (Invisible overlay to capture hover easier) */}
+                    <div className="absolute inset-y-0 -left-1 -right-1 z-10 bg-transparent" />
+
+                    {/* Tooltip */}
+                    <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-gray-800 text-white text-[10px] font-medium py-1 px-2 rounded shadow-sm transition-opacity whitespace-nowrap pointer-events-none z-50 flex flex-col items-center gap-0.5 ${isExpanded ? 'opacity-100 delay-100' : 'opacity-0'}`}>
+                      <span>{slide.title}</span>
+                      <span className="text-gray-400 text-[9px]">{slide.duration}s • {slide.narrations} Steps</span>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                    </div>
+
+                    {/* The Bar Segment Container */}
+                    <div
+                      className={`
+                        h-full rounded-full overflow-hidden relative transition-all duration-200 flex items-center
+                        ${isExpanded
+                           ? 'bg-emerald-50 ring-1 ring-emerald-500 ring-offset-1 px-0 gap-[1px]'
+                           : 'bg-gray-100 hover:bg-gray-200 px-0'}
+                      `}
+                    >
+                      {/* Render Narrations ONLY for Expanded Slide (Active or Hovered) */}
+                      {hasNarrations && (isExpanded || !isCrowded) ? (
+                         // Create array of size narrations
+                         Array.from({ length: slide.narrations }).map((_, nIdx) => {
+                           let isFilled = false;
+                           if (isPast) isFilled = true;
+                           else if (isActive && nIdx <= activeNarrationIndex) isFilled = true;
+
+                           return (
+                             <div
+                               key={nIdx}
+                               onClick={(e) => {
+                                 e.stopPropagation(); // CRITICAL: Stop parent click
+                                 handleNarrationClick(e, idx, nIdx);
+                               }}
+                               className={`
+                                 flex-1 h-full transition-all duration-300 relative z-20
+                                 ${isFilled
+                                   ? 'bg-emerald-500 shadow-none'
+                                   : isExpanded
+                                     ? (isActive
+                                         ? 'bg-emerald-200/50 hover:bg-emerald-400 cursor-pointer'
+                                         : 'bg-gray-200 hover:bg-gray-400 cursor-pointer') // Gray for inactive slides
+                                     : 'bg-transparent'}
+                                 ${isActive && nIdx === activeNarrationIndex && isPlaying ? 'opacity-90' : ''}
+                                 first:rounded-l-full last:rounded-r-full border-r border-white/40 last:border-0
+                               `}
+                               title={`Narration ${nIdx + 1}`}
+                             />
+                           );
+                         })
+                      ) : (
+                        // Compact Mode (Single Solid Bar)
+                        <div
+                           className={`h-full w-full transition-all duration-300
+                             ${isPast || isActive ? 'bg-emerald-500' : 'bg-transparent'}
+                           `}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )})}
+              </div>
+
+            </div>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
