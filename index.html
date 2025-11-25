@@ -190,6 +190,31 @@
           return () => window.removeEventListener('keydown', handleKeyDown);
         }, [activeSlideIndex, activeNarrationIndex, currentSegment, currentPathId]);
 
+        // Auto-Play Logic
+        useEffect(() => {
+          let interval;
+          if (isPlaying) {
+            interval = setInterval(() => {
+              const currentSlide = currentSegment[activeSlideIndex];
+
+              // Case 1: Advance Narration in current slide
+              if (currentSlide && activeNarrationIndex < currentSlide.narrations - 1) {
+                setActiveNarrationIndex(prev => prev + 1);
+              }
+              // Case 2: Advance to Next Slide
+              else if (activeSlideIndex < currentSegment.length - 1) {
+                setActiveSlideIndex(prev => prev + 1);
+                setActiveNarrationIndex(0);
+              }
+              // Case 3: End of segment reached
+              else {
+                setIsPlaying(false); // Stop at the end
+              }
+            }, 2000); // 2 seconds per step
+          }
+          return () => clearInterval(interval);
+        }, [isPlaying, activeSlideIndex, activeNarrationIndex, currentSegment]);
+
         const handleSegmentClick = (index) => {
           setActiveSlideIndex(index);
           setActiveNarrationIndex(0); // Reset narration on manual segment click
